@@ -2,7 +2,7 @@
 Designed to help people with visual impairments, MkvSubsEnlarger is a cross-platform accessibility tool that increases the font size of embedded subtitles in mkv files.
 
 ## Requirements
-MkvSubsEnlarger makes use of ffmpeg to extract subtitles and remux files with the modified subtitles. The ffmpeg binaries can be downloaded from https://ffmpeg.org/download.html. The ffmpeg binary must be placed in the same directory as the MkvSubsEnlarger binary for it to work.
+MkvSubsEnlarger makes use of ffmpeg and ffprobe to extract subtitles and remux files with the modified subtitles. The ffmpeg binaries can be downloaded from https://ffmpeg.org/download.html. The ffmpeg and ffprobe binaries must be placed in the same directory as MkvSubsEnlarger for it to work.
 
 ## Usage
 Currently, MkvSubsEnlarger enlarges subtitle font size by a set amount. There are plans for future updates to support customizing this.
