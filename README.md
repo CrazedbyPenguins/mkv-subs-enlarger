@@ -5,6 +5,7 @@ Designed to help people with visual impairments, MkvSubsEnlarger is a cross-plat
 MkvSubsEnlarger makes use of ffmpeg to extract subtitles and remux files with the modified subtitles. The ffmpeg binaries can be downloaded from https://ffmpeg.org/download.html. The ffmpeg binary must be placed in the same directory as the MkvSubsEnlarger binary for it to work.
 
 ## Usage
+Currently, MkvSubsEnlarger enlarges subtitle font size by a set amount. There are plans for future updates to support customizing this.
 
 ### Windows
 
@@ -26,6 +27,4 @@ This is the easiest way to use the app on Unix-like systems like Linux and MacOS
 `./MkvSubsEnlarger file1 [file2 [...]]`
 
 ## File formats
-MkvSubsEnlarger is designed to work with mkv files with subtitles in the Advanced SubStation Alpha (.ass) format. Currently, only the first subtitle stream will be processed, and made default in the resulting file. All other subtitle streams will be discarded.
-
-There are plans for future updates to process all subtitle streams in videos, as well as to add support for files with subtitles in the SubRip (.srt) format.
+MkvSubsEnlarger is designed to work with mkv files with subtitles in the Advanced SubStation Alpha (.ass) and SubRip (.srt) formats. It will probably work with other text-based subtitle formats (untested), but will probably fail with image-based formats.
