@@ -28,3 +28,5 @@ This is the easiest way to use the app on Unix-like systems like Linux and MacOS
 
 ## File formats
 MkvSubsEnlarger is designed to work with mkv files with subtitles in the Advanced SubStation Alpha (.ass) and SubRip (.srt) formats. It will probably work with other text-based subtitle formats (untested), but will probably fail with image-based formats.
+
+All subtitle streams will be converted to the .ass format, since .srt doesn't contain size information.
