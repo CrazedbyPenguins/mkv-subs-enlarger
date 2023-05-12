@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 Environment.CurrentDirectory = Path.GetDirectoryName(AppContext.BaseDirectory) ?? Environment.CurrentDirectory;
 
 // Check for ffmpeg
-if(!CheckForFfmpeg(out var ffmpegFile, out var ffprobeFile))
+if (!CheckForFfmpeg(out var ffmpegFile, out var ffprobeFile))
     return;
 
 // Figure out which files we're working with.
@@ -124,7 +124,7 @@ void ProcessFile(FileInfo mkvFile)
     }
 
     // Check stream info
-    var subtitleStreams = GetStreamsInfo(mkvFile);
+    GetStreamsInfo(mkvFile, out var subtitleStreams, out var hasAttachmentStream);
 
     // Extract subs
     ExtractSubtitles(mkvFile, subtitleStreams);
@@ -138,7 +138,7 @@ void ProcessFile(FileInfo mkvFile)
     }
 
     // Re-mux video
-    MuxMkvFile(mkvFile, subtitleStreams);
+    MuxMkvFile(mkvFile, subtitleStreams, hasAttachmentStream);
 
     // Clean up
     Console.WriteLine("Cleaning up...");
@@ -151,15 +151,15 @@ void ProcessFile(FileInfo mkvFile)
     Console.WriteLine();
 }
 
-List<SubtitleStreamInfo> GetStreamsInfo(FileInfo mkvFile)
+void GetStreamsInfo(FileInfo mkvFile, out List<SubtitleStreamInfo> subtitleStreams, out bool hasAttatchmentStream)
 {
     var ffprobeArgs = $@"""{mkvFile.FullName}""";
     var ffprobeProcessStartInfo = new ProcessStartInfo(ffprobeFile!.FullName, ffprobeArgs) { RedirectStandardError = true };
     var ffprobeProcess = new Process() { StartInfo = ffprobeProcessStartInfo };
     ffprobeProcess.Start();
 
-    List<SubtitleStreamInfo> subtitleStreams = new();
-    var maxStreamIndex = -1;
+    subtitleStreams = new();
+    hasAttatchmentStream = false;
 
     var currentLine = string.Empty;
     while ((currentLine = ffprobeProcess.StandardError.ReadLine()) != null)
@@ -167,7 +167,6 @@ List<SubtitleStreamInfo> GetStreamsInfo(FileInfo mkvFile)
         if (currentLine.TrimStart().StartsWith("Stream"))
         {
             var match = Regex.Match(currentLine, @"Stream #\d+:(\d+)(?:\((\w+)\))?: (?:(\w+): (\w+)) ?(?:\((default)\))? ?(?:\((forced)\))?");
-            maxStreamIndex = int.Parse(match.Groups[1].Value);
 
             if (match.Groups[3].Value == "Subtitle")
                 subtitleStreams.Add(new SubtitleStreamInfo
@@ -177,11 +176,11 @@ List<SubtitleStreamInfo> GetStreamsInfo(FileInfo mkvFile)
                     extractedFile = new FileInfo($"{mkvFile.DirectoryName}/{Path.GetFileNameWithoutExtension(mkvFile.FullName)}.{int.Parse(match.Groups[1].Value)}.ass"),
                     enlargedFile = new FileInfo($"{mkvFile.DirectoryName}/{Path.GetFileNameWithoutExtension(mkvFile.FullName)}.{int.Parse(match.Groups[1].Value)}.large.ass")
                 });
+            else if (match.Groups[3].Value == "Attachment")
+                hasAttatchmentStream = true;
         }
     }
     ffprobeProcess.WaitForExit();
-
-    return subtitleStreams;
 }
 
 void ExtractSubtitles(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams)
@@ -247,8 +246,19 @@ void EnlargeSubtitles(SubtitleStreamInfo subtitleStream)
     subtitlesStreamReader.Close();
 }
 
-void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams)
+void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams, bool hasAttachmentStream)
 {
+    /*
+    Due to the way ffmpeg treats files with embedded cover images, mapping the streams 1:1 in the new
+    file breaks things if the file has an embedded cover image. Ffmpeg treats the image as a video
+    stream rather than an attachment. However, copying the stream directly from one file to another
+    breaks things. To make things work correctly, the image must be de-muxed/extracted from the
+    original file, and re-muxed separately into the new file. If you simply copy the stream, ffmpeg
+    doesn't complain, but for some reason, only the first line of embedded subtitles will play. So,
+    this abomination works around that by ignoring any embedded image streams. Unfortunately, we
+    don't necessarily end up with a file where the streams are mapped 1:1, and thus we also have to
+    map metadata for each type of stream separately and explicitly.
+    */
     Console.WriteLine("Muxing new file...");
 
     var enlargedSubsMkvFile = new FileInfo($"{mkvFile.DirectoryName}/{Path.GetFileNameWithoutExtension(mkvFile.FullName)} (enlarged subs).mkv");
@@ -256,18 +266,17 @@ void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams)
     var ffmpegMuxArgs = $@"-v warning -i ""{mkvFile.FullName}""";
 
     foreach (var subtitleStream in subtitleStreams)
-    {
         ffmpegMuxArgs += $@" -i ""{subtitleStream.enlargedFile.FullName}""";
-    }
 
     ffmpegMuxArgs += " -c copy -map 0:V -map 0:a";
 
-    for (var i = 0; i < subtitleStreams.Count; i++)
-    {
-        ffmpegMuxArgs += $" -map {i + 1}:s:0";
-    }
+    for (var i = 1; i <= subtitleStreams.Count; i++)
+        ffmpegMuxArgs += $" -map {i}:s:0";
 
-    ffmpegMuxArgs += $@" -map 0:t? -map_metadata 0 -map_metadata:s:V 0:s:V -map_metadata:s:a 0:s:a -map_metadata:s:s 0:s:s ""{enlargedSubsMkvFile}""";
+    ffmpegMuxArgs += " -map 0:t? -map_metadata 0 -map_metadata:s:V 0:s:V -map_metadata:s:a 0:s:a -map_metadata:s:s 0:s:s";
+    if (hasAttachmentStream)
+        ffmpegMuxArgs += " -map_metadata:s:t 0:s:t";
+    ffmpegMuxArgs += $@" ""{enlargedSubsMkvFile}""";
 
     var ffmpegMuxProcessStartInfo = new ProcessStartInfo(ffmpegFile!.FullName, ffmpegMuxArgs);
     var ffmpegMuxProcess = new Process() { StartInfo = ffmpegMuxProcessStartInfo };
