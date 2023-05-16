@@ -124,7 +124,7 @@ void ProcessFile(FileInfo mkvFile)
     }
 
     // Check stream info
-    GetStreamsInfo(mkvFile, out var subtitleStreams, out var hasAttachmentStream);
+    GetStreamsInfo(mkvFile, out var subtitleStreams, out var streamCounts);
 
     // Extract subs
     ExtractSubtitles(mkvFile, subtitleStreams);
@@ -138,7 +138,7 @@ void ProcessFile(FileInfo mkvFile)
     }
 
     // Re-mux video
-    MuxMkvFile(mkvFile, subtitleStreams, hasAttachmentStream);
+    MuxMkvFile(mkvFile, subtitleStreams, streamCounts);
 
     // Clean up
     Console.WriteLine("Cleaning up...");
@@ -151,7 +151,7 @@ void ProcessFile(FileInfo mkvFile)
     Console.WriteLine();
 }
 
-void GetStreamsInfo(FileInfo mkvFile, out List<SubtitleStreamInfo> subtitleStreams, out bool hasAttatchmentStream)
+void GetStreamsInfo(FileInfo mkvFile, out List<SubtitleStreamInfo> subtitleStreams, out Dictionary<string, int> streamCounts)
 {
     var ffprobeArgs = $@"""{mkvFile.FullName}""";
     var ffprobeProcessStartInfo = new ProcessStartInfo(ffprobeFile!.FullName, ffprobeArgs) { RedirectStandardError = true };
@@ -159,7 +159,7 @@ void GetStreamsInfo(FileInfo mkvFile, out List<SubtitleStreamInfo> subtitleStrea
     ffprobeProcess.Start();
 
     subtitleStreams = new();
-    hasAttatchmentStream = false;
+    streamCounts = new();
 
     var currentLine = string.Empty;
     while ((currentLine = ffprobeProcess.StandardError.ReadLine()) != null)
@@ -176,8 +176,11 @@ void GetStreamsInfo(FileInfo mkvFile, out List<SubtitleStreamInfo> subtitleStrea
                     extractedFile = new FileInfo($"{mkvFile.DirectoryName}/{Path.GetFileNameWithoutExtension(mkvFile.FullName)}.{int.Parse(match.Groups[1].Value)}.ass"),
                     enlargedFile = new FileInfo($"{mkvFile.DirectoryName}/{Path.GetFileNameWithoutExtension(mkvFile.FullName)}.{int.Parse(match.Groups[1].Value)}.large.ass")
                 });
-            else if (match.Groups[3].Value == "Attachment")
-                hasAttatchmentStream = true;
+
+            if (!streamCounts.ContainsKey($"{match.Groups[3].Value}"))
+                streamCounts.Add(match.Groups[3].Value, 1);
+            else
+                streamCounts[match.Groups[3].Value]++;
         }
     }
     ffprobeProcess.WaitForExit();
@@ -246,7 +249,7 @@ void EnlargeSubtitles(SubtitleStreamInfo subtitleStream)
     subtitlesStreamReader.Close();
 }
 
-void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams, bool hasAttachmentStream)
+void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams, Dictionary<string, int> streamCounts)
 {
     /*
     Due to the way ffmpeg treats files with embedded cover images, mapping the streams 1:1 in the new
@@ -273,9 +276,18 @@ void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams, bool
     for (var i = 1; i <= subtitleStreams.Count; i++)
         ffmpegMuxArgs += $" -map {i}:s:0";
 
-    ffmpegMuxArgs += " -map 0:t? -map_metadata 0 -map_metadata:s:V 0:s:V -map_metadata:s:a 0:s:a -map_metadata:s:s 0:s:s";
-    if (hasAttachmentStream)
-        ffmpegMuxArgs += " -map_metadata:s:t 0:s:t";
+    ffmpegMuxArgs += " -map 0:t? -map_metadata 0 -map_metadata:s:V 0:s:V";
+
+    if (streamCounts.ContainsKey("Audio"))
+        for (var i = 0; i < streamCounts["Audio"]; i++)
+            ffmpegMuxArgs += $" -map_metadata:s:a:{i} 0:s:a:{i}";
+    if (streamCounts.ContainsKey("Subtitle"))
+        for (var i = 0; i < streamCounts["Subtitle"]; i++)
+            ffmpegMuxArgs += $" -map_metadata:s:s:{i} 0:s:s:{i}";
+    if (streamCounts.ContainsKey("Attachment"))
+        for (var i = 0; i < streamCounts["Attachment"]; i++)
+            ffmpegMuxArgs += $" -map_metadata:s:t:{i} 0:s:t:{i}";
+
     ffmpegMuxArgs += $@" ""{enlargedSubsMkvFile}""";
 
     var ffmpegMuxProcessStartInfo = new ProcessStartInfo(ffmpegFile!.FullName, ffmpegMuxArgs);
