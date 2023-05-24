@@ -144,8 +144,8 @@ void ProcessFile(FileInfo mkvFile)
     Console.WriteLine("Cleaning up...");
     foreach (var subtitleStream in subtitleStreams)
     {
-        subtitleStream.extractedFile.Delete();
-        subtitleStream.enlargedFile.Delete();
+        subtitleStream.ExtractedFile.Delete();
+        subtitleStream.EnlargedFile.Delete();
     }
 
     Console.WriteLine();
@@ -171,10 +171,10 @@ void GetStreamsInfo(FileInfo mkvFile, out List<SubtitleStreamInfo> subtitleStrea
             if (match.Groups[3].Value == "Subtitle")
                 subtitleStreams.Add(new SubtitleStreamInfo
                 {
-                    streamIndex = int.Parse(match.Groups[1].Value),
-                    format = match.Groups[4].Value,
-                    extractedFile = new FileInfo($"{mkvFile.DirectoryName}/{Path.GetFileNameWithoutExtension(mkvFile.FullName)}.{int.Parse(match.Groups[1].Value)}.ass"),
-                    enlargedFile = new FileInfo($"{mkvFile.DirectoryName}/{Path.GetFileNameWithoutExtension(mkvFile.FullName)}.{int.Parse(match.Groups[1].Value)}.large.ass")
+                    StreamIndex = int.Parse(match.Groups[1].Value),
+                    Format = match.Groups[4].Value,
+                    ExtractedFile = new FileInfo($"{mkvFile.DirectoryName}/{Path.GetFileNameWithoutExtension(mkvFile.FullName)}.{int.Parse(match.Groups[1].Value)}.ass"),
+                    EnlargedFile = new FileInfo($"{mkvFile.DirectoryName}/{Path.GetFileNameWithoutExtension(mkvFile.FullName)}.{int.Parse(match.Groups[1].Value)}.large.ass")
                 });
 
             if (!streamCounts.ContainsKey($"{match.Groups[3].Value}"))
@@ -194,7 +194,7 @@ void ExtractSubtitles(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams
 
     foreach (var subtitleStream in subtitleStreams)
     {
-        ffmpegExctractArgs += $@" -c:s ass -map 0:{subtitleStream.streamIndex} ""{subtitleStream.extractedFile.FullName}""";
+        ffmpegExctractArgs += $@" -c:s ass -map 0:{subtitleStream.StreamIndex} ""{subtitleStream.ExtractedFile.FullName}""";
     }
 
     var ffmpegExtractProcessStartInfo = new ProcessStartInfo(ffmpegFile!.FullName, ffmpegExctractArgs);
@@ -206,8 +206,8 @@ void ExtractSubtitles(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams
 
 void EnlargeSubtitles(SubtitleStreamInfo subtitleStream)
 {
-    using var subtitlesStreamReader = subtitleStream.extractedFile.OpenText();
-    using var enlargedSubtitlesStreamWriter = subtitleStream.enlargedFile.CreateText();
+    using var subtitlesStreamReader = subtitleStream.ExtractedFile.OpenText();
+    using var enlargedSubtitlesStreamWriter = subtitleStream.EnlargedFile.CreateText();
 
     var currentLine = string.Empty;
     while (!(currentLine = subtitlesStreamReader.ReadLine())!.StartsWith("Format:"))
@@ -220,7 +220,7 @@ void EnlargeSubtitles(SubtitleStreamInfo subtitleStream)
     {
         if (currentLine!.StartsWith("Style:"))
         {
-            if (subtitleStream.format == "ass")
+            if (subtitleStream.Format == "ass")
             {
                 var styles = currentLine.Replace("Style:", null).Split(',', StringSplitOptions.TrimEntries);
 
@@ -269,7 +269,7 @@ void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams, Dict
     var ffmpegMuxArgs = $@"-v warning -i ""{mkvFile.FullName}""";
 
     foreach (var subtitleStream in subtitleStreams)
-        ffmpegMuxArgs += $@" -i ""{subtitleStream.enlargedFile.FullName}""";
+        ffmpegMuxArgs += $@" -i ""{subtitleStream.EnlargedFile.FullName}""";
 
     ffmpegMuxArgs += " -c copy -map 0:V -map 0:a";
 
@@ -298,8 +298,8 @@ void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams, Dict
 
 struct SubtitleStreamInfo
 {
-    public int streamIndex;
-    public string format;
-    public FileInfo extractedFile;
-    public FileInfo enlargedFile;
+    public int StreamIndex;
+    public string Format;
+    public FileInfo ExtractedFile;
+    public FileInfo EnlargedFile;
 }
