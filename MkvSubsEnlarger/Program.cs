@@ -278,14 +278,14 @@ void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams, Dict
 
     ffmpegMuxArgs += " -map 0:t? -map_metadata 0 -map_metadata:s:V 0:s:V";
 
-    if (streamCounts.ContainsKey("Audio"))
-        for (var i = 0; i < streamCounts["Audio"]; i++)
+    if (streamCounts.TryGetValue("Audio", out var audioStreamCount))
+        for (var i = 0; i < audioStreamCount; i++)
             ffmpegMuxArgs += $" -map_metadata:s:a:{i} 0:s:a:{i}";
-    if (streamCounts.ContainsKey("Subtitle"))
-        for (var i = 0; i < streamCounts["Subtitle"]; i++)
+    if (streamCounts.TryGetValue("Subtitle", out var subtitleStreamCount))
+        for (var i = 0; i < subtitleStreamCount; i++)
             ffmpegMuxArgs += $" -map_metadata:s:s:{i} 0:s:s:{i}";
-    if (streamCounts.ContainsKey("Attachment"))
-        for (var i = 0; i < streamCounts["Attachment"]; i++)
+    if (streamCounts.TryGetValue("Attachment", out var attachmentStreamCount))
+        for (var i = 0; i < attachmentStreamCount; i++)
             ffmpegMuxArgs += $" -map_metadata:s:t:{i} 0:s:t:{i}";
 
     ffmpegMuxArgs += $@" ""{enlargedSubsMkvFile}""";
