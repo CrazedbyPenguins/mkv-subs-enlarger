@@ -288,6 +288,9 @@ void MuxMkvFile(FileInfo mkvFile, List<SubtitleStreamInfo> subtitleStreams, Dict
         for (var i = 0; i < attachmentStreamCount; i++)
             ffmpegMuxArgs += $" -map_metadata:s:t:{i} 0:s:t:{i}";
 
+    if (subtitleStreamCount == 1)
+        ffmpegMuxArgs += " -disposition:s:0 default";
+
     ffmpegMuxArgs += $@" ""{enlargedSubsMkvFile}""";
 
     var ffmpegMuxProcessStartInfo = new ProcessStartInfo(ffmpegFile!.FullName, ffmpegMuxArgs);
